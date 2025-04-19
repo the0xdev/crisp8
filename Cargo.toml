@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2025 Imran M <imran@imranmustafa.net>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 [package]
 name = "crisp8"
 version = "0.1.0"

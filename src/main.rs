@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2025 Imran M <imran@imranmustafa.net>
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
 use std::io::BufReader;
 use std::io::Error;
 use std::ops::Range;
