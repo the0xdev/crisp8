@@ -4,18 +4,17 @@ use std::ops::Range;
 use std::io::prelude::*;
 use std::fs::File;
 
-const SIZE: usize = 40_964;
+const SIZE: usize = 0x1000;
 
-const PROGRAM_START: usize = 512;
-const PROGRAM_END: usize = 3744;
+const PROGRAM_START: usize = 0x200;
+const PROGRAM_END: usize = 0xea0;
 
-const PROGRAM_SIZE: usize = 3744 - 512;
+const PROGRAM_SIZE: usize = PROGRAM_END - PROGRAM_END;
 const PROGRAM_RANGE: Range<usize> = PROGRAM_START..PROGRAM_END;
 
 const NUMOFREGISTERS: usize = 16;
 
-
-#[derive(Default, Debug, PartialEq)]
+#[derive(Default, Debug, PartialEq, Copy, Clone)]
 enum ISA {
     #[default]
     Chip8,
@@ -23,7 +22,7 @@ enum ISA {
     MegaChip,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Crisp {
     memory: [u8; SIZE],
     program_counter: usize,
@@ -35,6 +34,21 @@ pub struct Crisp {
     isa: ISA
 }
 
+// fn cycle(cur_state: Crisp) -> Crisp {
+//     let op = &cur_state.memory[cur_state.program_counter..=cur_state.program_counter + 1];
+//     let mut new_state: Crisp = cur_state.clone();
+
+//     println!("0x{:x} | {:x?}", cur_state.program_counter, op);
+
+//     new_state.program_counter += 2;
+//     new_state
+// }
+
+// fn op_exe(state: Crisp, code: &[u8]) -> Result<Crisp, Error> {
+//     todo!()
+// }
+
+
 impl Crisp {
     pub fn builder() -> CrispBuilder {
         CrispBuilder::default()
@@ -42,6 +56,46 @@ impl Crisp {
 
     pub fn mem_dump(self) -> u8 {
         return self.memory[PROGRAM_START]
+    }
+    
+    fn read_op_array(&self) -> [u8; 4] {
+	let bytes = &self.memory[self.program_counter..=self.program_counter + 1];
+	[
+	    (bytes[0] & 0b11110000) >> 4,
+	    bytes[0] & 0b00001111,
+	    (bytes[1] & 0b11110000) >> 4,
+	    bytes[1] & 0b00001111,
+	]
+    }
+
+    fn read_op_string(&self) -> String {
+	let op = self.read_op_array();
+	format!("{:x}{:x}{:x}{:x}", op[0], op[1], op[2], op[3])
+    }
+
+    pub fn run(mut self) {
+	for _ in 0..50 {
+	    let _ = &self.cycle();
+	}
+    }
+
+    fn cycle(&mut self) {
+	println!("0x{:x} | {:?}", self.program_counter, self.read_op_array());
+	match self.isa {
+	    ISA::Chip8 => {
+		self.chip8_op();
+	    }
+	    ISA::SuperChip => {
+		todo!()
+	    },
+	    ISA::MegaChip => {
+		todo!()
+	    },
+	}
+    }
+
+    fn chip8_op(&mut self) {
+	self.program_counter += 2;
     }
 }
 
@@ -58,13 +112,18 @@ pub struct CrispBuilder {
 }
 
 impl CrispBuilder {
-    
     pub fn new() -> CrispBuilder {
 	CrispBuilder {
+	    program_counter: Some(0x200),
+	    stack: Some(Vec::with_capacity(NUMOFREGISTERS)),
 	    ..Default::default()
 	}
     }
-    pub fn load(mut self, value: impl Into<String>) -> Result<CrispBuilder, Error> {
+    
+    pub fn load(mut self, value: impl Into<String>) -> CrispBuilder {
+	todo!()
+    }
+    pub fn load_file(mut self, value: impl Into<String>) -> Result<CrispBuilder, Error> {
 	let file_name = value.into();
 	let file = File::open(file_name)?;
 
@@ -75,6 +134,10 @@ impl CrispBuilder {
 	self.memory = Some(memory);
 	
         Ok(self)
+    }
+
+    pub fn load_font(mut self) -> CrispBuilder {
+	todo!()
     }
 
     pub fn build(self) -> Crisp {
@@ -101,5 +164,6 @@ impl CrispBuilder {
 }
 
 fn main() {
-    let c = CrispBuilder::new().load("test.bin").expect("File error").build();
+    let mut c = CrispBuilder::new().load_file("test.bin").expect("File error").build();
+    c.run();
 }

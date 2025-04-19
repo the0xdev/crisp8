@@ -20,7 +20,7 @@
         with pkgs; { 
           packages = {
             default = stdenv.mkDerivation rec {
-              name = "crisp-8";
+              name = "crisp8";
               src = ./.;
 
               RUST_BACKTRACE=1;
