@@ -7,6 +7,8 @@ use std::io::Error;
 use std::ops::Range;
 use std::io::prelude::*;
 use std::fs::File;
+use rand::Rng;
+
 
 const SIZE: usize = 0x1000;
 
@@ -53,6 +55,7 @@ pub struct Crisp {
 // }
 
 
+
 impl Crisp {
     pub fn builder() -> CrispBuilder {
         CrispBuilder::default()
@@ -84,7 +87,7 @@ impl Crisp {
     }
 
     fn cycle(&mut self) {
-	println!("0x{:x} | {:?}", self.program_counter, self.read_op_array());
+	println!("0x{:x} | {:?}", self.program_counter, self.read_op_string());
 	match self.isa {
 	    ISA::Chip8 => {
 		self.chip8_op();
@@ -99,6 +102,125 @@ impl Crisp {
     }
 
     fn chip8_op(&mut self) {
+	let bytes = self.read_op_array();
+	macro_rules! encode {
+	    (nn) => {
+		(bytes[2] << 4) + bytes[3]
+	    };
+	    (nnn) => {
+		((bytes[1] as u16) << 8) + (encode!(nn) as u16)
+	    };
+	    (x) => {
+		bytes[1]
+	    };
+	    (y) => {
+		bytes[2]
+	    };
+	}
+	macro_rules! reg {
+	    (x) => {
+		self.variable_register[encode!(x) as usize]
+	    };
+	    (y) => {
+		self.variable_register[encode!(y) as usize]
+	    };
+	    (f) => {
+		self.variable_register[NUMOFREGISTERS - 1]
+	    };
+	}
+	match bytes[0] {
+	    0x0 => match encode!(nnn) {
+		0x0e0 => todo!(),
+		0x0ee => todo!(),
+		_ => todo!(),
+	    },
+	    0x1 => {
+		todo!()	
+	    },
+	    0x2 => {
+		todo!()	
+	    },
+	    0x3 => {
+		todo!()
+	    },
+	    0x4 => {
+		todo!()
+	    },
+	    0x5 => {
+		todo!()
+	    },
+	    0x6 => {
+		reg!(x) = encode!(nn);
+	    },
+	    0x7 => todo!(),
+	    0x8 => match bytes[3] {
+		0x0 => {
+		    reg!(x) = reg!(y);
+		},
+		0x1 => {
+		    reg!(x) |= reg!(y);
+		},
+		0x2 => {
+		    reg!(x) &= reg!(y);
+		},
+		0x3 => {
+		    reg!(x) ^= reg!(y);
+		},
+		0x4 => {
+		    if let None = reg!(x).checked_add(reg!(y)) {
+			reg!(f) = 1;
+		    }
+		},
+		0x5 => {
+		    reg!(x) -= reg!(y)
+		},
+		0x6 => {
+		    todo!()
+		},
+		0x7 => {todo!()},
+		0xe => {
+		   todo!() 
+		},
+		_ => todo!(),
+	    },
+	    0x9 => {
+		todo!()	
+	    },
+	    0xa => {
+		self.i = encode!(nnn);
+	    },
+	    0xb => {
+		todo!()
+	    },
+	    0xc => {
+		let mut rng = rand::rng();
+		self.variable_register[bytes[1] as usize] = rng.random::<u8>() & encode!(nn)
+		
+	    },
+	    0xd => {
+		todo!()
+	    },
+	    0xe => match encode!(nn) {
+		0x9e => {todo!()},
+		0xa1 => {todo!()},
+		_ => todo!(),
+	    },
+	    0xf => match encode!(nn) {
+		0x0a => {todo!()},
+		0x1e => {
+		   self.i += reg!(x) as u16;
+		},
+		0x07 => {todo!()},
+		0x15 => {todo!()},
+		0x18 => {todo!()},
+		0x29 => {todo!()},
+		0x33 => {todo!()},
+		0x55 => {todo!()},
+		0x65 => {todo!()},
+		_ => todo!(),
+	    },
+	    _ => todo!(),
+	}
 	self.program_counter += 2;
     }
 }
