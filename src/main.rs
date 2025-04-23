@@ -128,6 +128,15 @@ impl Crisp {
 		self.variable_register[NUMOFREGISTERS - 1]
 	    };
 	}
+	macro_rules! sigbit {
+	    ($byte:expr, l) => {
+		$byte & 0b00000001
+	    };
+	    ($byte:expr, m) => {
+		($byte & 0b10000000).rotate_left(1)
+	    };
+
+	}
 	match bytes[0] {
 	    0x0 => match encode!(nnn) {
 		0x0e0 => todo!(),
@@ -166,20 +175,40 @@ impl Crisp {
 		0x3 => {
 		    reg!(x) ^= reg!(y);
 		},
-		0x4 => {
-		    if let None = reg!(x).checked_add(reg!(y)) {
+		0x4 => 
+		    if let Some(i) = reg!(x).checked_add(reg!(y)) {
+			reg!(x) = i;
+			reg!(f) = 0;
+		    } else {
+			reg!(x) = reg!(x).wrapping_add(reg!(y));
 			reg!(f) = 1;
 		    }
-		},
-		0x5 => {
-		    reg!(x) -= reg!(y)
-		},
+		,
+		0x5 =>
+		    if let Some(i) = reg!(x).checked_sub(reg!(y)) {
+			reg!(x) = i;
+			reg!(f) = 0;
+		    } else {
+			reg!(x) = reg!(x).wrapping_sub(reg!(y));
+			reg!(f) = 1;
+		    }
+		,
 		0x6 => {
-		    todo!()
+		    reg!(f) = sigbit!(reg!(x), l);
+		    reg!(x) >>= 1;
 		},
-		0x7 => {todo!()},
+		0x7 =>
+		    if let Some(i) = reg!(y).checked_sub(reg!(x)) {
+			reg!(x) = i;
+			reg!(f) = 0;
+		    } else {
+			reg!(x) = reg!(y).wrapping_sub(reg!(x));
+			reg!(f) = 1;
+		    }
+		,
 		0xe => {
-		   todo!() 
+		    reg!(f) = sigbit!(reg!(x), m);
+		    reg!(x) <<= 1;
 		},
 		_ => todo!(),
 	    },
