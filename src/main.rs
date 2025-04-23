@@ -31,11 +31,12 @@ enum ISA {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Crisp {
     memory: [u8; SIZE],
-    program_counter: usize,
+    program_counter: u16,
     i: u16,
     stack: Vec<u16>,
     delay_timer: u8,
     sound_timer: u8,
+    // display: [[bool; 64]; 32],
     variable_register: [u8; NUMOFREGISTERS],
     isa: ISA
 }
@@ -66,7 +67,7 @@ impl Crisp {
     }
     
     fn read_op_array(&self) -> [u8; 4] {
-	let bytes = &self.memory[self.program_counter..=self.program_counter + 1];
+	let bytes = &self.memory[self.program_counter as usize..=self.program_counter as usize + 1];
 	[
 	    (bytes[0] & 0b11110000) >> 4,
 	    bytes[0] & 0b00001111,
@@ -127,6 +128,9 @@ impl Crisp {
 	    (f) => {
 		self.variable_register[NUMOFREGISTERS - 1]
 	    };
+	    ($x:expr) => {
+		self.variable_register[$x as usize]
+	    };
 	}
 	macro_rules! sigbit {
 	    ($byte:expr, l) => {
@@ -139,29 +143,34 @@ impl Crisp {
 	}
 	match bytes[0] {
 	    0x0 => match encode!(nnn) {
-		0x0e0 => todo!(),
-		0x0ee => todo!(),
+		0x0e0 => {},
+		0x0ee => {
+		    self.program_counter = self.stack.pop().unwrap();
+		},
 		_ => todo!(),
 	    },
 	    0x1 => {
-		todo!()	
+		self.program_counter = encode!(nnn)
 	    },
 	    0x2 => {
-		todo!()	
+		self.stack.push(self.program_counter);
+		self.program_counter = encode!(nnn)
 	    },
-	    0x3 => {
-		todo!()
+	    0x3 => if reg!(x) == encode!(nn) {
+		self.program_counter += 2
 	    },
-	    0x4 => {
-		todo!()
+	    0x4 => if reg!(x) != encode!(nn) {
+		self.program_counter += 2
 	    },
-	    0x5 => {
-		todo!()
+	    0x5 => if reg!(x) == reg!(y) {
+		self.program_counter += 2
 	    },
 	    0x6 => {
 		reg!(x) = encode!(nn);
 	    },
-	    0x7 => todo!(),
+	    0x7 => {
+		reg!(x) += encode!(nn);
+	    },
 	    0x8 => match bytes[3] {
 		0x0 => {
 		    reg!(x) = reg!(y);
@@ -212,19 +221,18 @@ impl Crisp {
 		},
 		_ => todo!(),
 	    },
-	    0x9 => {
-		todo!()	
+	    0x9 => if reg!(x) != reg!(y) {
+		self.program_counter += 2
 	    },
 	    0xa => {
 		self.i = encode!(nnn);
 	    },
 	    0xb => {
-		todo!()
+		self.program_counter = encode!(nnn) + reg!(0) as u16;
 	    },
 	    0xc => {
 		let mut rng = rand::rng();
 		self.variable_register[bytes[1] as usize] = rng.random::<u8>() & encode!(nn)
-		
 	    },
 	    0xd => {
 		todo!()
@@ -239,13 +247,29 @@ impl Crisp {
 		0x1e => {
 		   self.i += reg!(x) as u16;
 		},
-		0x07 => {todo!()},
-		0x15 => {todo!()},
-		0x18 => {todo!()},
+		0x07 => {
+		    reg!(x) = self.delay_timer;
+		},
+		0x15 => {
+		    self.delay_timer = reg!(x);
+		},
+		0x18 => {
+		    self.sound_timer = reg!(x);
+		},
 		0x29 => {todo!()},
-		0x33 => {todo!()},
-		0x55 => {todo!()},
-		0x65 => {todo!()},
+		0x33 => {
+		    
+		},
+		0x55 => {
+		    for ii in 0..=encode!(x) {
+			self.memory[(self.i + (ii as u16)) as usize] = reg!(ii);
+		    }
+		},
+		0x65 => {
+		    for ii in 0..=encode!(x) {
+			reg!(ii) = self.memory[(self.i + (ii as u16)) as usize];
+		    }
+		},
 		_ => todo!(),
 	    },
 	    _ => todo!(),
@@ -257,7 +281,7 @@ impl Crisp {
 #[derive(Default)]
 pub struct CrispBuilder {
     memory: Option<[u8; SIZE]>,
-    program_counter: Option<usize>,
+    program_counter: Option<u16>,
     i: Option<u16>,
     stack: Option<Vec<u16>>,
     delay_timer: Option<u8>,
