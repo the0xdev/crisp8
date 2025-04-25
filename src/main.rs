@@ -7,6 +7,7 @@ use std::io::Error;
 use std::ops::Range;
 use std::io::prelude::*;
 use std::fs::File;
+use std::io;
 use rand::Rng;
 
 
@@ -17,6 +18,9 @@ const PROGRAM_END: usize = 0xea0;
 
 const PROGRAM_SIZE: usize = PROGRAM_END - PROGRAM_END;
 const PROGRAM_RANGE: Range<usize> = PROGRAM_START..PROGRAM_END;
+
+const DISPLAY_HEIGHT: usize = 64;
+const DISPLAY_WIDTH: usize = 64;
 
 const NUMOFREGISTERS: usize = 16;
 
@@ -36,7 +40,7 @@ pub struct Crisp {
     stack: Vec<u16>,
     delay_timer: u8,
     sound_timer: u8,
-    // display: [[bool; 64]; 32],
+    display: [[u8; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
     variable_register: [u8; NUMOFREGISTERS],
     isa: ISA
 }
@@ -81,7 +85,22 @@ impl Crisp {
 	format!("{:x}{:x}{:x}{:x}", op[0], op[1], op[2], op[3])
     }
 
+    fn draw(&self) {
+	for ii in self.display {
+	    for jj in ii {
+		print!("{:0>8b}", jj);
+	    }
+	    println!();
+	}
+    }
+
+    fn clear(&self) {
+	print!("{}[2J", 27 as char);
+    }
+
     pub fn run(mut self) {
+	self.clear();
+	self.draw();
 	for _ in 0..50 {
 	    let _ = &self.cycle();
 	}
@@ -111,11 +130,17 @@ impl Crisp {
 	    (nnn) => {
 		((bytes[1] as u16) << 8) + (encode!(nn) as u16)
 	    };
+	    (w) => {
+		bytes[0]
+	    };
 	    (x) => {
 		bytes[1]
 	    };
 	    (y) => {
 		bytes[2]
+	    };
+	    (z) => {
+		bytes[3]
 	    };
 	}
 	macro_rules! reg {
@@ -143,7 +168,9 @@ impl Crisp {
 	}
 	match bytes[0] {
 	    0x0 => match encode!(nnn) {
-		0x0e0 => {},
+		0x0e0 => {
+		    self.clear();
+		},
 		0x0ee => {
 		    self.program_counter = self.stack.pop().unwrap();
 		},
@@ -235,7 +262,15 @@ impl Crisp {
 		self.variable_register[bytes[1] as usize] = rng.random::<u8>() & encode!(nn)
 	    },
 	    0xd => {
-		todo!()
+		reg!(f) = 0;
+		for ii in 0..encode!(z) {
+		    if self.display[reg!(x) as usize][(reg!(y) + ii) as usize] & 0b1111_1111 > 0x00 {
+			reg!(f) = 1;
+		    } 
+		    self.display[reg!(x) as usize][(reg!(y) + ii) as usize] ^= self.memory[(self.i + ii as u16) as usize];
+		}
+		self.clear();
+		self.draw();
 	    },
 	    0xe => match encode!(nn) {
 		0x9e => {todo!()},
@@ -243,7 +278,10 @@ impl Crisp {
 		_ => todo!(),
 	    },
 	    0xf => match encode!(nn) {
-		0x0a => {todo!()},
+		0x0a => {
+		    let stdin = io::stdin();
+		    reg!(x) = stdin.bytes().nth(0).unwrap().expect("no key");
+		},
 		0x1e => {
 		   self.i += reg!(x) as u16;
 		},
@@ -286,6 +324,7 @@ pub struct CrispBuilder {
     stack: Option<Vec<u16>>,
     delay_timer: Option<u8>,
     sound_timer: Option<u8>,
+    display: Option<[[u8; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>,
     variable_register: Option<[u8; NUMOFREGISTERS]>,
     isa: Option<ISA>,
 }
@@ -295,10 +334,11 @@ impl CrispBuilder {
 	CrispBuilder {
 	    program_counter: Some(0x200),
 	    stack: Some(Vec::with_capacity(NUMOFREGISTERS)),
+	    display: Some([[0x00; DISPLAY_WIDTH]; DISPLAY_HEIGHT]),
 	    ..Default::default()
 	}
     }
-    
+
     pub fn load(mut self, value: impl Into<String>) -> CrispBuilder {
 	todo!()
     }
@@ -336,6 +376,7 @@ impl CrispBuilder {
 	    stack: build!(stack),
 	    delay_timer: build!(delay_timer),
 	    sound_timer: build!(sound_timer),
+	    display: build!(display, [[0x00; DISPLAY_WIDTH]; DISPLAY_HEIGHT]),
 	    variable_register: build!(variable_register, [0; NUMOFREGISTERS]),
 	    isa: build!(isa),
 	}
@@ -343,6 +384,6 @@ impl CrispBuilder {
 }
 
 fn main() {
-    let mut c = CrispBuilder::new().load_file("test.bin").expect("File error").build();
+    let c = CrispBuilder::new().load_file("test.bin").expect("File error").build();
     c.run();
 }
