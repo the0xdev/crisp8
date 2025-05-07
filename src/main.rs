@@ -8,7 +8,17 @@ use std::ops::Range;
 use std::io::prelude::*;
 use std::fs::File;
 use std::io;
+use eframe::egui::vec2;
+use eframe::egui::Color32;
+use eframe::egui::CornerRadius;
+use eframe::egui::Rect;
+use eframe::egui::Sense;
+use eframe::egui::Stroke;
+use crate::egui::Vec2;
+use crate::egui::pos2;
 use rand::Rng;
+
+use std::f32::consts::TAU;
 
 use eframe::{
     egui,
@@ -420,7 +430,60 @@ impl Default for MyApp {
 impl eframe::App for Crisp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("My egui Application");
+            //ui.heading("My egui Application");
+	    // Create a "canvas" for drawing on that's 100% x 300px
+	    let (response, painter) = ui.allocate_painter(
+		eframe::egui::Vec2::new(640.0, 320.0),
+		Sense::hover()
+	    );
+
+	    let rect = response.rect;
+	    let c = rect.center();
+	    let r = rect.width() / 2.0 - 1.0;
+	    let color = Color32::from_gray(128);
+	    let stroke = Stroke::new(1.0, color);
+	    for ii in 0..64 {
+		for jj in 0..32 {
+		    painter.rect_filled(
+			Rect::from_min_size(
+			    pos2(
+				ii as f32 * 10.0_f32,
+				jj as f32 * 10.0_f32
+			    ),
+			    Vec2::splat(10.0_f32)
+			),
+			CornerRadius::ZERO,
+			if (ii + jj) % 2 == 0 {
+			    Color32::WHITE
+			} else {
+			    Color32::BLACK
+			}
+		    );
+		}
+	    }
+	    //painter.rect_filled(Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), CornerRadius::ZERO, Color32::WHITE);
+	    // painter.circle_stroke(c, r, stroke);
+	    // painter.line_segment([c - vec2(0.0, r), c + vec2(0.0, r)], stroke);
+	    // painter.line_segment([c, c + r * Vec2::angled(TAU * 1.0 / 8.0)], stroke);
+	    // painter.line_segment([c, c + r * Vec2::angled(TAU * 3.0 / 8.0)], stroke);
+
+	    // // Get the relative position of our "canvas"
+	    // let to_screen = response.rect;
+	    // // The line we want to draw represented as 2 points
+	    // let first_point = Pos2 { x: 0.0, y: 0.0 };
+	    // let second_point = Pos2 { x: 300.0, y: 300.0 };
+	    // // Make the points relative to the "canvas"
+	    // let first_point_in_screen = to_screen.transform_pos(first_point);
+	    // let second_point_in_screen = to_screen.transform_pos(second_point);
+
+	    // // Paint the line!
+	    // painter.add(Shape::LineSegment {
+	    // 	points: [first_point_in_screen, second_point_in_screen],
+	    // 	stroke: Stroke {
+	    // 	    width: 10.0,
+	    // 	    color: Color32::BLUE,
+	    // 	},
+	    // });
         });
     }
 }
