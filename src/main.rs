@@ -394,12 +394,11 @@ fn main() -> eframe::Result {
     let mut c = CrispBuilder::new().load_file("test.bin").expect("File error").build();
     // c.run();
     eframe::run_native(
-        "My egui App",
+        "crisp8",
         options,
         Box::new(|cc| {
             // This gives us image support:
-	    
-            Ok(Box::<MyApp>::default())
+            Ok(Box::new(c))
         }),
     )
 }
@@ -418,21 +417,10 @@ impl Default for MyApp {
     }
 }
 
-impl eframe::App for MyApp {
+impl eframe::App for Crisp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("My egui Application");
-            ui.horizontal(|ui| {
-                let name_label = ui.label("Your name: ");
-                ui.text_edit_singleline(&mut self.name)
-                    .labelled_by(name_label.id);
-            });
-            ui.add(egui::Slider::new(&mut self.age, 0..=120).text("age"));
-            if ui.button("Increment").clicked() {
-                self.age += 1;
-            }
-            ui.label(format!("Hello '{}', age {}", self.name, self.age));
-
         });
     }
 }
