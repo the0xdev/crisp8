@@ -8,6 +8,8 @@ use std::ops::Range;
 use std::io::prelude::*;
 use std::fs::File;
 use std::io;
+use std::thread::sleep;
+use std::time;
 use eframe::egui::vec2;
 use eframe::egui::Color32;
 use eframe::egui::CornerRadius;
@@ -17,6 +19,8 @@ use eframe::egui::Stroke;
 use crate::egui::Vec2;
 use crate::egui::pos2;
 use rand::Rng;
+use std::io::stdout;
+use std::io::stdin;
 
 use std::f32::consts::TAU;
 
@@ -32,7 +36,7 @@ const PROGRAM_END: usize = 0xea0;
 const PROGRAM_SIZE: usize = PROGRAM_END - PROGRAM_END;
 const PROGRAM_RANGE: Range<usize> = PROGRAM_START..PROGRAM_END;
 
-const DISPLAY_HEIGHT: usize = 64;
+const DISPLAY_HEIGHT: usize = 32;
 const DISPLAY_WIDTH: usize = 64;
 
 const NUMOFREGISTERS: usize = 16;
@@ -53,9 +57,20 @@ pub struct Crisp {
     stack: Vec<u16>,
     delay_timer: u8,
     sound_timer: u8,
-    display: [[u8; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
+    display: [[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT],
     variable_register: [u8; NUMOFREGISTERS],
     isa: ISA
+}
+use std::io::{Write};
+
+fn pause() {
+    print!("press enter to contiue... ");
+    let _ = stdout().flush();
+    let _: Option<i32> = std::io::stdin()
+	.bytes() 
+	.next()
+	.and_then(|result| result.ok())
+	.map(|byte| byte as i32);
 }
 
 // fn cycle(cur_state: Crisp) -> Crisp {
@@ -100,26 +115,42 @@ impl Crisp {
     fn draw(&self) {
 	for ii in self.display {
 	    for jj in ii {
-		print!("{:0>8b}", jj);
+		print!("{}", if jj {"1"} else {"0"});
 	    }
 	    println!();
 	}
     }
-
-    fn clear(&self) {
+    fn clear_terminal(&mut self) {
 	print!("{}[2J", 27 as char);
     }
 
-    pub fn run(mut self) {
-	self.clear();
-	self.draw();
-	for _ in 0..50 {
+    fn clear(&mut self) {
+	self.display = [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT];
+    }
+
+    pub fn run(&mut self) {
+	loop {
 	    let _ = &self.cycle();
+	    // println!("0x{:X} | {:?}", self.program_counter, self.read_op_string());
+	//     for reg in self.variable_register.iter().enumerate() {
+	// 	println!("reg[{:X}] | 0x{:X}", reg.0, reg.1);
+	// }
+	//     println!("\nI | 0x{:X}", self.i);
+	//     println!("Stack:");
+	//     for adrr in &self.stack {
+	// 	println!("\t0x{:X}", adrr);
+	// }
+
+	    self.draw();
+	    stdout().flush();
+	    sleep(time::Duration::from_millis(150));
+	    self.clear_terminal();
+	    // pause();
 	}
+		
     }
 
     fn cycle(&mut self) {
-	println!("0x{:x} | {:?}", self.program_counter, self.read_op_string());
 	match self.isa {
 	    ISA::Chip8 => {
 		self.chip8_op();
@@ -189,20 +220,20 @@ impl Crisp {
 		_ => todo!(),
 	    },
 	    0x1 => {
-		self.program_counter = encode!(nnn)
+		self.program_counter = encode!(nnn) - 2;
 	    },
 	    0x2 => {
 		self.stack.push(self.program_counter);
-		self.program_counter = encode!(nnn)
+		self.program_counter = encode!(nnn) - 2;
 	    },
 	    0x3 => if reg!(x) == encode!(nn) {
-		self.program_counter += 2
+		self.program_counter += 2;
 	    },
 	    0x4 => if reg!(x) != encode!(nn) {
-		self.program_counter += 2
+		self.program_counter += 2;
 	    },
 	    0x5 => if reg!(x) == reg!(y) {
-		self.program_counter += 2
+		self.program_counter += 2;
 	    },
 	    0x6 => {
 		reg!(x) = encode!(nn);
@@ -267,22 +298,27 @@ impl Crisp {
 		self.i = encode!(nnn);
 	    },
 	    0xb => {
-		self.program_counter = encode!(nnn) + reg!(0) as u16;
+		self.program_counter = encode!(nnn) + reg!(0) as u16 - 2;
 	    },
 	    0xc => {
 		let mut rng = rand::rng();
 		self.variable_register[bytes[1] as usize] = rng.random::<u8>() & encode!(nn)
 	    },
 	    0xd => {
-		reg!(f) = 0;
-		for ii in 0..encode!(z) {
-		    if self.display[reg!(x) as usize][(reg!(y) + ii) as usize] & 0b1111_1111 > 0x00 {
-			reg!(f) = 1;
-		    } 
-		    self.display[reg!(x) as usize][(reg!(y) + ii) as usize] ^= self.memory[(self.i + ii as u16) as usize];
+		macro_rules! byte_to_bool {
+		    ($b:expr, $n:expr) => {
+			($b & 0b10000000_u8.rotate_right($n)) != 0
+		    };
 		}
-		self.clear();
-		self.draw();
+		reg!(f) = 0;
+
+		for ii in 0..encode!(z) {
+		    let sprite_byte = self.memory[self.i as usize + ii as usize];
+		    for jj in 0..8 {
+			self.display[(reg!(y) + ii) as usize][reg!(x) as usize] ^= byte_to_bool!(sprite_byte, jj);
+		    }
+
+		}
 	    },
 	    0xe => match encode!(nn) {
 		0x9e => {todo!()},
@@ -336,7 +372,7 @@ pub struct CrispBuilder {
     stack: Option<Vec<u16>>,
     delay_timer: Option<u8>,
     sound_timer: Option<u8>,
-    display: Option<[[u8; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>,
+    display: Option<[[bool; DISPLAY_WIDTH]; DISPLAY_HEIGHT]>,
     variable_register: Option<[u8; NUMOFREGISTERS]>,
     isa: Option<ISA>,
 }
@@ -346,7 +382,7 @@ impl CrispBuilder {
 	CrispBuilder {
 	    program_counter: Some(0x200),
 	    stack: Some(Vec::with_capacity(NUMOFREGISTERS)),
-	    display: Some([[0x00; DISPLAY_WIDTH]; DISPLAY_HEIGHT]),
+	    display: Some([[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT]),
 	    ..Default::default()
 	}
     }
@@ -388,7 +424,7 @@ impl CrispBuilder {
 	    stack: build!(stack),
 	    delay_timer: build!(delay_timer),
 	    sound_timer: build!(sound_timer),
-	    display: build!(display, [[0x00; DISPLAY_WIDTH]; DISPLAY_HEIGHT]),
+	    display: build!(display, [[false; DISPLAY_WIDTH]; DISPLAY_HEIGHT]),
 	    variable_register: build!(variable_register, [0; NUMOFREGISTERS]),
 	    isa: build!(isa),
 	}
@@ -401,8 +437,8 @@ fn main() -> eframe::Result {
         viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
         ..Default::default()
     };
-    let mut c = CrispBuilder::new().load_file("test.bin").expect("File error").build();
-    // c.run();
+    let mut c = CrispBuilder::new().load_file("test2.bin").expect("File error").build();
+    c.run();
     eframe::run_native(
         "crisp8",
         options,
@@ -413,19 +449,6 @@ fn main() -> eframe::Result {
     )
 }
 
-struct MyApp {
-    name: String,
-    age: u32,
-}
-
-impl Default for MyApp {
-    fn default() -> Self {
-        Self {
-            name: "Arthur".to_owned(),
-            age: 42,
-        }
-    }
-}
 
 impl eframe::App for Crisp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -453,10 +476,13 @@ impl eframe::App for Crisp {
 			    Vec2::splat(10.0_f32)
 			),
 			CornerRadius::ZERO,
-			if (ii + jj) % 2 == 0 {
-			    Color32::WHITE
-			} else {
-			    Color32::BLACK
+			{
+			    if self.display[ii][jj] {
+			    //if (ii + jj) % 2 == 0 {
+				Color32::WHITE
+			    } else {
+				Color32::BLACK
+			    }
 			}
 		    );
 		}
